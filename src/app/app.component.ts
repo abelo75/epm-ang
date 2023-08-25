@@ -1,6 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import {
-  combineLatest,
+  combineLatestWith,
+  debounceTime,
   filter,
   forkJoin,
   map,
@@ -34,7 +35,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // 1.1. Add functionality to changeCharactersInput method. Changes searchTermByCharacters Subject value on input change.
     const inputValue: string = element.target.value;
     // YOUR CODE STARTS HERE
-
+    this.searchTermByCharacters.next(inputValue);
     // YOUR CODE ENDS HERE
   }
 
@@ -48,16 +49,27 @@ export class AppComponent implements OnInit, OnDestroy {
     this.charactersResults$ = this.searchTermByCharacters
         .pipe
         // YOUR CODE STARTS HERE
+        (
+            filter((value) => value.length > 2),
+            debounceTime(500),
+            switchMap((value) => {
+              return this.mockDataService.getCharacters(value);
+            })
+        );
 
-        // YOUR CODE ENDS HERE
-        ();
+    // YOUR CODE ENDS HERE
   }
 
   loadCharactersAndPlanet(): void {
     // 4. On clicking the button 'Load Characters And Planets', it is necessary to process two requests and combine the results of both requests into one result array. As a result, a list with the names of the characters and the names of the planets is displayed on the screen.
     // Your code should looks like this: this.planetAndCharactersResults$ = /* Your code */
     // YOUR CODE STARTS HERE
-    // YOUR CODE ENDS HERE
+
+    this.planetAndCharactersResults$ = forkJoin([this.mockDataService.getCharacters(), this.mockDataService.getPlatents()]).pipe(
+        map(([characters, planets]) => {
+          return [...characters, ...planets];
+        }),
+    );
   }
 
   initLoadingState(): void {
@@ -67,12 +79,24 @@ export class AppComponent implements OnInit, OnDestroy {
     - Subscribe to changes
     - Check the received value using the areAllValuesTrue function and pass them to the isLoading variable. */
     // YOUR CODE STARTS HERE
+    // get message: combineLatest is deprecated
+    // combineLatest(this.mockDataService.charactersLoader$, this.mockDataService.planetsLoader$).subscribe(([charactersLoader, planetsLoader]) => {
+    //     this.isLoading = this.areAllValuesTrue([charactersLoader, planetsLoader]);
+    // });
+
+    this.subscriptions.push(this.mockDataService.planetsLoader$.pipe(
+        combineLatestWith(this.mockDataService.charactersLoader$),
+    ).subscribe(([charactersLoader, planetsLoader]) => {
+      this.isLoading = this.areAllValuesTrue([charactersLoader, planetsLoader]);
+    }));
+
     // YOUR CODE ENDS HERE
   }
 
   ngOnDestroy(): void {
     // 5.2 Unsubscribe from all subscriptions
     // YOUR CODE STARTS HERE
+    this.subscriptions.forEach((subscription) => subscription.unsubscribe());
     // YOUR CODE ENDS HERE
   }
 
